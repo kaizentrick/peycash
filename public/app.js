@@ -19,6 +19,7 @@ const showControls = !paymentLinkId;
 let charge;
 let polling;
 let requestKey;
+let chargeOperator;
 
 async function api(url, { body, headers = {} } = {}) {
   const response = await fetch(url, body === undefined ? { headers } : {
@@ -51,9 +52,10 @@ function render(data) {
   };
 
   document.querySelector("#charge-label").textContent = simulated ? "MODO SIMULACIÓN" : "COBRO REAL · PEY CODI";
-  document.querySelector("#charge-status").textContent = data.refund?.status === "pending"
+  const shownRefund = simulated || showControls ? data.refund : null;
+  document.querySelector("#charge-status").textContent = shownRefund?.status === "pending"
     ? "Devolución simulada pendiente"
-    : data.refund?.status === "complete" ? "Devolución simulada completada" : statuses[data.status];
+    : shownRefund?.status === "complete" ? "Devolución simulada completada" : statuses[data.status];
   expiry.hidden = !pending && !data.latePayment;
   expiry.textContent = pending
     ? `Vence a las ${new Date(data.expiresAt).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" })} (CDMX).`
@@ -66,8 +68,9 @@ function render(data) {
   actions.hidden = !showControls;
   copyLink.hidden = !(pending || paid);
   simulatePayment.hidden = !(simulated && pending);
-  requestRefund.hidden = !paid || Boolean(data.refund);
-  confirmRefund.hidden = data.refund?.status !== "pending";
+  const canSimulateRefund = simulated || Boolean(chargeOperator);
+  requestRefund.hidden = !paid || Boolean(data.refund) || !canSimulateRefund;
+  confirmRefund.hidden = data.refund?.status !== "pending" || !canSimulateRefund;
   printReceipt.hidden = !(paid && data.channel === "pos" && !data.refund);
   whatsapp.hidden = printReceipt.hidden;
   if (!whatsapp.hidden) {
@@ -119,6 +122,7 @@ form.addEventListener("submit", async (event) => {
     if (data.status !== "creating" && data.status !== "needs_review") {
       requestKey = undefined;
     }
+    chargeOperator = data.mode === "live" ? token : undefined;
     render(data);
     feedback.textContent = "";
   } catch (error) {
@@ -133,7 +137,9 @@ async function demoAction(button, action, body = {}) {
   button.disabled = true;
   actionFeedback.textContent = "";
   try {
-    render(await api(`/api/charges/${charge.id}/${action}`, { body }));
+    const headers = charge.mode === "live" && chargeOperator
+      ? { Authorization: `Bearer ${chargeOperator}` } : {};
+    render(await api(`/api/charges/${charge.id}/${action}`, { body, headers }));
   } catch (error) {
     actionFeedback.textContent = error.message;
   } finally {

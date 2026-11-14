@@ -87,6 +87,7 @@ test("a live charge only settles on its matching, signed Pey webhook", async (t)
   }
   assert.equal((await req(hookPath, webhook(event, false))).status, 401);
   assert.equal((await req(hookPath, webhook({ ...event, amount: 0.02 }))).status, 422);
+  assert.equal((await req(hookPath, webhook({ ...event, amount: 0.014 }))).status, 422);
   assert.equal((await req(hookPath, webhook({ ...event, bankAccountId: "other-account" }))).status, 422);
   assert.equal((await (await req(chargePath)).json()).status, "pending");
   assert.equal((await req(hookPath, webhook(event))).status, 204);
@@ -96,6 +97,10 @@ test("a live charge only settles on its matching, signed Pey webhook", async (t)
   assert.equal(paid.status, "paid");
   assert.equal(paid.mode, "live");
   assert.equal(paid.paidAt, event.datePaid * 1000);
+  const refundPath = `${chargePath}/simulated-refund`;
+  assert.equal((await req(refundPath, post({ step: "request" }))).status, 401);
+  const simulatedRefund = await req(refundPath, post({ step: "request" }, { Authorization: `Bearer ${operatorToken}` }));
+  assert.deepEqual((await simulatedRefund.json()).refund, { mode: "simulation", status: "pending" });
 });
 
 test("live mode is disabled on an unconfigured public demo", async (t) => {

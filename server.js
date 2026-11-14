@@ -21,8 +21,10 @@ function equalSecret(expected, supplied) {
 }
 
 function cents(amount) {
-  const value = typeof amount === "number" ? amount : Number.NaN;
-  return Number.isFinite(value) ? Math.round(value * 100) : null;
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
+  const scaled = amount * 100;
+  const rounded = Math.round(scaled);
+  return Number.isSafeInteger(rounded) && Math.abs(scaled - rounded) < 1e-8 ? rounded : null;
 }
 
 function publicCharge(row) {
@@ -151,6 +153,11 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
   app.use(express.json({ limit: "8kb" }));
   app.get("/api/health", (_req, res) => res.json({ ok: true, liveReady }));
 
+  function canOperate(req) {
+    const operator = req.get("authorization")?.match(/^Bearer ([^ ]+)$/)?.[1];
+    return liveReady && equalSecret(config.operatorToken, operator);
+  }
+
   function limit(req, res, next) {
     const now = Date.now();
     for (const [key, entry] of ipBuckets) {
@@ -172,8 +179,7 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
       return res.status(400).json({ error: "Selecciona un canal y un modo de cobro válidos." });
     }
     const live = mode === "live";
-    const operator = req.get("authorization")?.match(/^Bearer ([^ ]+)$/)?.[1];
-    if (live && (!liveReady || !equalSecret(config.operatorToken, operator))) {
+    if (live && !canOperate(req)) {
       return res.status(liveReady ? 401 : 503).json({
         error: liveReady ? "La clave de la persona operadora no es válida." : "El cobro real requiere configurar Pey y el webhook.",
       });
@@ -239,6 +245,9 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
 
   app.post("/api/charges/:id/simulated-refund", limit, findCharge, (req, res) => {
     const row = req.charge;
+    if (row.mode === "live" && !canOperate(req)) {
+      return res.status(401).json({ error: "Se necesita autorización para simular una devolución sobre un cobro real." });
+    }
     if (row.status !== "paid") return res.sendStatus(409);
     const step = req.body?.step;
     if (step === "request") {
