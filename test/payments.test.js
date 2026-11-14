@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { test } from "node:test";
 import { Webhook } from "standardwebhooks";
-import { makeApp } from "../index.js";
+import { makeApp } from "../server.js";
 
 const hookSecret = "whsec_" + Buffer.from("only used for testing webhook verification").toString("base64");
 const operatorToken = "operator-test-token";
