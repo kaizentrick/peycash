@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PeyCash es un prototipo de cobros CoDi para tiendas mexicanas, cajas y ventas por chat.">
+  <meta name="theme-color" content="#f4f7f5">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <title>PeyCash · Cobros CoDi para comercios en México</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="bar wrap">
+    <a class="brand" href="/" aria-label="Inicio de PeyCash"><img src="/icon.svg" width="35" height="35" alt=""> PeyCash</a>
+    <nav aria-label="Principal"><a href="/#canales">Integraciones</a><a class="nav-action" href="/#demo">Probar demo <span aria-hidden="true">↗</span></a></nav>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" id="inicio">
+      <div class="intro">
+        <p class="tag"><span></span> CoDi® · México</p>
+        <h1>Cobra desde<br>cualquier canal.</h1>
+        <p class="lead">Una solicitud de pago desde Shopify, tu caja o una conversación. Tu cliente paga desde su banco y PeyCash confirma el cobro con Pey.</p>
+        <a class="button main-cta" href="#demo">Probar cobro <span aria-hidden="true">↗</span></a>
+      </div>
+      <aside class="preview" aria-label="Vista previa de un cobro">
+        <div class="preview-top"><span>PeyCash</span><span>VISTA PREVIA</span></div>
+        <div class="preview-body">
+          <span>Importe del cobro</span><strong>$0.01 <small>MXN</small></strong>
+          <div class="scan"><img src="/grid.svg" width="116" height="116" alt=""></div>
+          <div class="preview-state"><span></span> CoDi · Confirmación bancaria</div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="channels" id="canales" aria-labelledby="canales-title">
+      <h2 id="canales-title">Dónde quieres cobrar</h2>
+      <div class="channels-grid">
+        <article><span class="channel-number">01 / TIENDA EN LÍNEA</span><h3>Shopify</h3><p>El comprador elige CoDi en el checkout cuando la integración de pagos esté aprobada.</p><a href="#demo" data-channel="ecommerce">Ver flujo <span aria-hidden="true">↗</span></a></article>
+        <article><span class="channel-number">02 / MOSTRADOR</span><h3>Punto de venta</h3><p>La caja muestra un QR por venta y confirma el abono antes de entregar el ticket.</p><a href="#demo" data-channel="pos">Ver flujo <span aria-hidden="true">↗</span></a></article>
+        <article><span class="channel-number">03 / CONVERSACIONES</span><h3>Agentes de IA</h3><p>Un agente comparte un enlace del pedido. El cliente autoriza el pago en su banco.</p><a href="#demo" data-channel="agent">Ver flujo <span aria-hidden="true">↗</span></a></article>
+      </div>
+    </section>
+
+    <section class="demo" id="demo" aria-labelledby="demo-title">
+      <div class="demo-heading">
+        <h2 id="demo-title">Prueba un cobro</h2>
+        <p>Genera una solicitud de $0.01 MXN y sigue su estado hasta la devolución simulada.</p>
+      </div>
+      <div class="workbench">
+        <form id="charge-form">
+          <label for="channel">Canal</label>
+          <select id="channel" name="channel">
+            <option value="ecommerce">Shopify · Flujo de muestra</option>
+            <option value="pos">Punto de venta</option>
+            <option value="agent">Agente · Enlace de pago</option>
+          </select>
+          <label for="mode">Modo</label>
+          <select id="mode" name="mode">
+            <option value="simulation">Simulación · Sin movimiento de dinero</option>
+            <option id="live-option" value="live" disabled>Cobro real · Pey CoDi</option>
+          </select>
+          <div id="operator" hidden><label for="operator-token">Clave de operación de la demo</label><input id="operator-token" type="password" autocomplete="off"></div>
+          <button class="button" type="submit">Generar solicitud <span aria-hidden="true">→</span></button>
+          <p id="feedback" role="status"></p>
+        </form>
+        <div id="charge-panel" class="panel" aria-live="polite">
+          <p class="tag" id="charge-label">ESTADO DEL COBRO</p>
+          <p class="amount">$0.01 <span>MXN</span></p>
+          <p id="charge-status" class="status">Listo para generar una solicitud.</p>
+          <p id="expiry" hidden></p>
+          <img id="pay-qr" width="220" height="220" alt="QR CoDi de esta solicitud" hidden>
+          <div id="charge-actions" class="actions" hidden>
+            <button type="button" class="small" id="copy-link">Copiar enlace</button>
+            <button type="button" class="small" id="simulate-payment" hidden>Simular pago</button>
+            <button type="button" class="small" id="request-refund" hidden>Simular solicitud de devolución</button>
+            <button type="button" class="small" id="confirm-refund" hidden>Simular devolución completada</button>
+            <a class="small" id="whatsapp" target="_blank" rel="noopener" hidden>Compartir ticket por WhatsApp</a>
+            <button type="button" class="small" id="print-receipt" hidden>Imprimir ticket</button>
+          </div>
+          <p id="action-feedback" role="status"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap foot"><a class="brand" href="/">PeyCash</a><span>Proyecto de KaizenTrick · Cursor Hackatón México</span><a href="https://github.com/kaizentrick/peycash" rel="noopener">Código ↗</a></footer>
+</body>
+</html>
