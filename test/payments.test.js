@@ -110,3 +110,45 @@ test("live mode is disabled on an unconfigured public demo", async (t) => {
   assert.equal((await req("/api/charges", post({ mode: "live", channel: "pos" }, { "Idempotency-Key": randomUUID() }))).status, 503);
   assert.equal((await req("/api/webhooks/pey", post({}))).status, 503);
 });
+
+test("Shopify POS accepts only the configured shop and waits for a signed Pey confirmation", async (t) => {
+  const { SignJWT } = await import("jose");
+  const secret = "test Shopify app shared secret";
+  const req = await setup(t, {
+    config: {
+      apiKey: "test-key", webhookSecret: hookSecret, operatorToken,
+      shopifyClientId: "dev-client", shopifyClientSecret: secret, shopifyDevShop: "pilot.myshopify.com",
+    },
+    request: async () => Response.json({ id: "pos-qr", qrString: "test CoDi QR payload" }),
+  });
+  async function tokenFor(shop) {
+    return new SignJWT({ dest: `https://${shop}` }).setProtectedHeader({ alg: "HS256" })
+      .setAudience("dev-client").setSubject("11").setExpirationTime("1m")
+      .sign(new TextEncoder().encode(secret));
+  }
+  const path = "/api/pos/charges";
+  const key = randomUUID();
+  const create = async (shop) => req(path, {
+    method: "POST", headers: { Authorization: `Bearer ${await tokenFor(shop)}`, "Idempotency-Key": key },
+  });
+  assert.equal((await create("other.myshopify.com")).status, 401);
+  const initial = await create("pilot.myshopify.com");
+  assert.equal(initial.status, 201);
+  const { id } = await initial.json();
+  assert.equal((await (await create("pilot.myshopify.com")).json()).id, id);
+  const status = async () => (await req(`${path}/${id}`)).json();
+  assert.equal((await status()).qrPayload, "test CoDi QR payload");
+  assert.equal((await req(`/api/charges/${id}/simulated-payment`, post({}))).status, 409);
+  const event = {
+    type: "codi.qr.payment_received", codiQrId: "pos-qr", transactionId: "pos-paid", amount: 0.01,
+  };
+  const webhookId = randomUUID();
+  const date = new Date();
+  const signature = new Webhook(hookSecret).sign(webhookId, date, JSON.stringify(event));
+  assert.equal((await req("/api/webhooks/pey", post(event, {
+    "webhook-id": webhookId, "webhook-timestamp": String(Math.floor(date.getTime() / 1000)),
+    "webhook-signature": signature,
+  }))).status, 204);
+  assert.equal((await status()).status, "paid");
+  assert.equal((await status()).qrPayload, null);
+});

@@ -3,11 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.13" },
-  "scripts": { "start": "node index.js", "test": "node --test" },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
   "dependencies": {
     "express": "^5.2.1",
+    "jose": "^6.2.17",
     "qrcode": "1.5.4",
     "standardwebhooks": "1.1.1"
+  },
+  "devDependencies": {
+    "@preact/signals": "^2.11.4",
+    "@shopify/ui-extensions": "^2026.10.0",
+    "esbuild": "^0.28.2",
+    "preact": "^11.2.0"
   }
 }

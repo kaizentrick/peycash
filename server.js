@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { Webhook } from "standardwebhooks";
+import { jwtVerify } from "jose";
 
 const CENTS = 1;
 const LIFETIME = 600;
@@ -158,6 +159,34 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
     return liveReady && equalSecret(config.operatorToken, operator);
   }
 
+  async function authorizePos(req, res, next) {
+    const { shopifyClientId, shopifyClientSecret, shopifyDevShop } = config;
+    if (!liveReady || !shopifyClientId || !shopifyClientSecret || !shopifyDevShop) {
+      return res.status(503).json({ error: "Falta conectar la tienda Shopify de desarrollo y las credenciales de Pey." });
+    }
+    const token = req.get("authorization")?.match(/^Bearer ([^ ]+)$/)?.[1];
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(shopifyClientSecret), {
+        algorithms: ["HS256"], audience: shopifyClientId,
+        requiredClaims: ["exp", "dest", "sub"],
+      });
+      if (new URL(payload.dest).origin !== `https://${shopifyDevShop}`) throw new Error("Wrong shop");
+    } catch {
+      return res.status(401).json({ error: "La sesión no pertenece a la tienda de desarrollo autorizada." });
+    }
+    next();
+  }
+
+  app.use("/api/pos/charges", (req, res, next) => {
+    res.set({
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Authorization, Idempotency-Key",
+    });
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
+
   function limit(req, res, next) {
     const now = Date.now();
     for (const [key, entry] of ipBuckets) {
@@ -173,13 +202,14 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
     next();
   }
 
-  app.post("/api/charges", limit, async (req, res) => {
-    const { mode, channel } = req.body ?? {};
+  async function createCharge(req, res) {
+    const pos = req.path === "/api/pos/charges";
+    const { mode, channel } = pos ? { mode: "live", channel: "pos" } : req.body ?? {};
     if (!["simulation", "live"].includes(mode) || !validChannels.has(channel)) {
       return res.status(400).json({ error: "Selecciona un canal y un modo de cobro válidos." });
     }
     const live = mode === "live";
-    if (live && !canOperate(req)) {
+    if (live && !pos && !canOperate(req)) {
       return res.status(liveReady ? 401 : 503).json({
         error: liveReady ? "La clave de la persona operadora no es válida." : "El cobro real requiere configurar Pey y el webhook.",
       });
@@ -188,7 +218,7 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
     if (!/^[0-9a-f-]{36}$/i.test(requestKey ?? "")) {
       return res.status(400).json({ error: "Falta el identificador de la solicitud." });
     }
-    const scope = `${mode}:${requestKey}`;
+    const scope = `${pos ? "shopify-pos" : mode}:${requestKey}`;
     const previous = byRequest.get(scope);
     if (previous) {
       if (previous.channel !== channel) return res.status(409).json({ error: "La solicitud ya pertenece a otro canal." });
@@ -214,7 +244,9 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
       }
     }
     return res.status(201).json(publicCharge(load.get(id)));
-  });
+  }
+  app.post("/api/charges", limit, createCharge);
+  app.post("/api/pos/charges", limit, authorizePos, createCharge);
 
   function findCharge(req, res, next) {
     const row = chargeId.test(req.params.id) ? load.get(req.params.id) : null;
@@ -224,6 +256,13 @@ export function makeApp({ database, config = {}, request = fetch } = {}) {
   }
 
   app.get("/api/charges/:id", findCharge, (req, res) => res.json(publicCharge(req.charge)));
+
+  app.get("/api/pos/charges/:id", findCharge, (req, res) => {
+    const row = req.charge;
+    if (!row.request_key?.startsWith("shopify-pos:")) return res.sendStatus(404);
+    const charge = publicCharge(row);
+    res.json({ ...charge, qrPayload: charge.status === "pending" ? row.qr : null });
+  });
 
   app.get("/api/charges/:id/qr", findCharge, async (req, res) => {
     const row = req.charge;
@@ -284,6 +323,9 @@ export function start() {
     apiKey: process.env.PEY_API_KEY,
     webhookSecret: process.env.PEY_WEBHOOK_SECRET,
     operatorToken: process.env.PEY_OPERATOR_TOKEN,
+    shopifyClientId: process.env.SHOPIFY_API_KEY,
+    shopifyClientSecret: process.env.SHOPIFY_API_SECRET,
+    shopifyDevShop: process.env.SHOPIFY_POS_DEV_SHOP,
     bankAccountId: process.env.PEY_BANK_ACCOUNT_ID,
   };
   const app = makeApp({ database, config });

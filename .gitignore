@@ -6,3 +6,5 @@ node_modules/
 /.tmp/
 *.sqlite*
 .DS_Store
+/shopify.app.toml
+/.shopify/

@@ -1,0 +1,15 @@
+api_version = "2026-10"
+
+[[extensions]]
+type = "ui_extension"
+name = "PeyCash POS"
+handle = "peycash-pos"
+uid = "56bb23f2-82dc-4308-adad-f5ed24a9bb8e"
+
+[[extensions.targeting]]
+module = "./src/Tile.jsx"
+target = "pos.home.tile.render"
+
+[[extensions.targeting]]
+module = "./src/Modal.jsx"
+target = "pos.home.modal.render"
